@@ -92,16 +92,16 @@ object Config extends LazyLogging {
           }
         }
         .valueName("<stdout | kafka>")
-        .text("where to output to")
+        .text("where to generate user events")
 
       opt[Seq[String]]("bootstrap-servers")
         .valueName("[<addr:port>]")
         .action((x, c) => c.copy(bootstrapServers = x))
-        .text("list of bootstrap servers (Kafka only)")
+        .text("valid only for Kafka output mode")
 
       opt[String]("topic")
         .action((x, c) => c.copy(topic = x))
-        .text("topic to which to produce output (Kafka only)")
+        .text("valid only for Kafka output mode")
 
       opt[String]("prefix")
         .action((x, c) => c.copy(keyPrefix = x))
