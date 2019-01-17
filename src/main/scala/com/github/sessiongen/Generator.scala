@@ -1,6 +1,6 @@
 package com.github.sessiongen
 
-import com.github.sessiongen.Generator.{EventHandler, defaultEventHandler}
+import com.github.sessiongen.Generator.EventHandler
 import com.typesafe.scalalogging.LazyLogging
 import java.util.Properties
 import org.apache.kafka.clients.producer.{KafkaProducer, ProducerRecord}
@@ -88,7 +88,7 @@ object Generator {
         createObject[EventHandler](eventHandler, eventHandlerArgs)
 
       case (None, _) =>
-        defaultEventHandler
+        DefaultEventHandler
     }
   }
 
@@ -129,10 +129,10 @@ object Generator {
     def handle(event: Event): String
   }
 
-  private[sessiongen] object defaultEventHandler extends EventHandler {
+  private[sessiongen] object DefaultEventHandler extends EventHandler {
     override def handle(event: Event): String = {
       import event._
-      s"""{"id": "$id", "logout": "$logout", "time": "$timestamp"}"""
+      s"""{"id": "$id", "logout": "$logout", "time": "$timestamp", "payload": "$payload"}"""
     }
   }
 }
