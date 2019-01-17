@@ -1,5 +1,6 @@
 package com.github.sessiongen
 
+import java.io.File
 import com.typesafe.scalalogging.LazyLogging
 import scopt.OptionParser
 
@@ -9,7 +10,7 @@ case class Config(rate: Int = -1,
                   logoutProbability: Double = Double.NaN,
                   payloadSize: Int = -1,
                   outputMode: OutputMode = Stdout(),
-                  bootstrapServers: Seq[String] = Seq(),
+                  propertyFileOpt: Option[File] = None,
                   topic: String = "",
                   keyPrefix: String = "",
                   runningTime: Int = -1,
@@ -94,10 +95,9 @@ object Config extends LazyLogging {
         .valueName("<stdout | kafka>")
         .text("where to generate user events")
 
-      opt[Seq[String]]("bootstrap-servers")
-        .valueName("[<addr:port>]")
-        .action((x, c) => c.copy(bootstrapServers = x))
-        .text("valid only for Kafka output mode")
+      opt[File]("producer-property-file")
+        .action((x, c) => c.copy(propertyFileOpt = Some(x)))
+        .text("property file for Kafka producer")
 
       opt[String]("topic")
         .action((x, c) => c.copy(topic = x))
@@ -132,16 +132,9 @@ object Config extends LazyLogging {
       }
 
       checkConfig { c =>
-        if (c.outputMode.isInstanceOf[Kafka]) {
-          if (c.bootstrapServers.isEmpty) {
-            failure("Output mode is 'kafka' but no bootstrap servers are specified")
-          } else if (c.topic.isEmpty) {
-            failure("Output mode is 'kafka' but no topic is specified")
-          } else {
-            success
-          }
-        } else {
-          success
+        c.propertyFileOpt match {
+          case Some(x) => success
+          case None => failure("Kafka mode requires --propertyFile")
         }
       }
     }

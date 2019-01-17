@@ -1,9 +1,13 @@
 package com.github.sessiongen
 
+import java.io.FileInputStream
+
 import com.github.sessiongen.Generator.EventHandler
 import com.typesafe.scalalogging.LazyLogging
 import java.util.Properties
+
 import org.apache.kafka.clients.producer.{KafkaProducer, ProducerRecord}
+
 import scala.util.Random
 
 class Generator(config: Config, name: String) extends LazyLogging {
@@ -103,9 +107,7 @@ object Generator {
       case Kafka() =>
         val producer: KafkaProducer[String, String] = {
           val props = new Properties()
-          props.put("bootstrap.servers", bootstrapServers.mkString(","))
-          props.put("key.serializer", "org.apache.kafka.common.serialization.StringSerializer")
-          props.put("value.serializer", "org.apache.kafka.common.serialization.StringSerializer")
+          props.load(new FileInputStream(propertyFileOpt.get))
           new KafkaProducer(props)
         }
         def kafkaFeeder(id: String, jsonString: String, timestamp: Long): Boolean = {
