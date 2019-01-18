@@ -1,4 +1,4 @@
-package com.github.sessiongen
+package com.github.sessiongen.generator
 
 sealed trait OutputMode
 case class Stdout() extends OutputMode

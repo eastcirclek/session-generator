@@ -1,6 +1,8 @@
-package com.github.sessiongen
+package com.github.sessiongen.generator
 
 import java.io.File
+
+import com.github.sessiongen._
 import com.typesafe.scalalogging.LazyLogging
 import scopt.OptionParser
 
@@ -132,9 +134,13 @@ object Config extends LazyLogging {
       }
 
       checkConfig { c =>
-        c.propertyFileOpt match {
-          case Some(x) => success
-          case None => failure("Kafka mode requires --propertyFile")
+        c.outputMode match {
+          case Kafka() =>
+            c.propertyFileOpt match {
+              case Some(x) => success
+              case None => failure("Kafka mode requires --propertyFile")
+            }
+          case Stdout() => success
         }
       }
     }
