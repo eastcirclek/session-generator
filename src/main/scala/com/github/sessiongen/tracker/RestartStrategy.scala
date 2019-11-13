@@ -2,7 +2,7 @@ package com.github.sessiongen.sessiontracker
 
 import org.apache.flink.api.common.restartstrategy.RestartStrategies
 import org.apache.flink.api.common.time.Time
-import org.apache.flink.streaming.api.scala.StreamExecutionEnvironment
+import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment
 
 sealed trait RestartStrategy
 case class FIXED_DELAY(attempts: Int, delayInMillis: Long) extends RestartStrategy

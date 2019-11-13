@@ -3,7 +3,7 @@ package com.github.sessiongen.sessiontracker
 import org.apache.flink.contrib.streaming.state.{PredefinedOptions, RocksDBStateBackend}
 import org.apache.flink.runtime.state.filesystem.FsStateBackend
 import org.apache.flink.runtime.state.memory.MemoryStateBackend
-import org.apache.flink.streaming.api.scala.StreamExecutionEnvironment
+import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment
 
 sealed trait StateBackend
 case class NO_STATE_BACKEND() extends StateBackend

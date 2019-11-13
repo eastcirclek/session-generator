@@ -1,117 +1,207 @@
+buildscript {
+    repositories {
+        jcenter() // this applies only to the Gradle 'Shadow' plugin
+    }
+    dependencies {
+        classpath 'com.github.jengelman.gradle.plugins:shadow:2.0.4'
+    }
+}
+
 plugins {
+    id 'java'
     id 'scala'
+    id 'application'
     id 'com.github.johnrengelman.shadow' version '2.0.4'
 }
 
 group 'com.github'
-version '1.0-SNAPSHOT'
+version '0.1'
+mainClassName = 'com.github.sessionGen.session'
+description = """Session generator"""
 
-sourceCompatibility = 1.8
+ext {
+    javaVersion = '1.8'
+    flinkVersion = "1.9.1"
+    scalaBinaryVersion = "2.12"
+    slf4jVersion = '1.7.7'
+    log4jVersion = '1.2.17'
+}
+
+sourceCompatibility = javaVersion
+targetCompatibility = javaVersion
+tasks.withType(JavaCompile) {
+    options.encoding = 'UTF-8'
+}
+
+applicationDefaultJvmArgs = ["-Dlog4j.configuration=log4j.properties"]
+
+task wrapper(type: Wrapper) {
+    gradleVersion = '3.1'
+}
 
 repositories {
     mavenCentral()
 }
 
-ext {
-    scalaVersion = "2.11.12"
-    scalaBinVersion = "2.11"
-    flinkVersion = "1.7.0"
+
+// NOTE: We cannot use "compileOnly" or "shadow" configurations since then we could not run code
+// in the IDE or with "gradle run". We also cannot exclude transitive dependencies from the
+// shadowJar yet (see https://github.com/johnrengelman/shadow/issues/159).
+// -> Explicitly define the // libraries we want to be included in the "flinkShadowJar" configuration!
+configurations {
+    flinkShadowJar // dependencies which go into the shadowJar
+
+    // always exclude these (also from transitive dependencies) since they are provided by Flink
+    flinkShadowJar.exclude group: 'org.apache.flink', module: 'force-shading'
+    flinkShadowJar.exclude group: 'com.google.code.findbugs', module: 'jsr305'
+    flinkShadowJar.exclude group: 'org.slf4j'
+    flinkShadowJar.exclude group: 'log4j'
 }
 
+// declare the dependencies for your production and test code
 dependencies {
-    compile 'org.slf4j:slf4j-log4j12:1.7.25'
-    compile "org.json4s:json4s-native_$scalaBinVersion:3.5.3"
-    compile "com.typesafe.scala-logging:scala-logging_$scalaBinVersion:3.9.0"
-    compile "org.apache.flink:flink-clients_$scalaBinVersion:$flinkVersion"
-    compile "org.apache.flink:flink-scala_$scalaBinVersion:$flinkVersion"
-    compile "org.apache.flink:flink-streaming-scala_$scalaBinVersion:$flinkVersion"
-    compile "org.apache.flink:flink-connector-kafka_$scalaBinVersion:$flinkVersion"
-    compile "org.apache.flink:flink-metrics-dropwizard:$flinkVersion"
-    compile "org.apache.flink:flink-statebackend-rocksdb_$scalaBinVersion:$flinkVersion"
+    // --------------------------------------------------------------
+    // Compile-time dependencies that should NOT be part of the
+    // shadow jar and are provided in the lib folder of Flink
+    // --------------------------------------------------------------
+    compile "org.apache.flink:flink-java:${flinkVersion}"
+    compile "org.apache.flink:flink-streaming-java_${scalaBinaryVersion}:${flinkVersion}"
+
+    // --------------------------------------------------------------
+    // Dependencies that should be part of the shadow jar, e.g.
+    // connectors. These must be in the flinkShadowJar configuration!
+    // --------------------------------------------------------------
+    flinkShadowJar "org.apache.flink:flink-connector-kafka_${scalaBinaryVersion}:${flinkVersion}"
+    flinkShadowJar "org.apache.flink:flink-statebackend-rocksdb_${scalaBinaryVersion}:${flinkVersion}"
+
+    compile "log4j:log4j:${log4jVersion}"
+    compile "org.slf4j:slf4j-log4j12:${slf4jVersion}"
+    compile "org.json4s:json4s-native_${scalaBinaryVersion}:3.5.3"
+    compile "com.typesafe.scala-logging:scala-logging_${scalaBinaryVersion}:3.9.0"
+
+    // Add test dependencies here.
+    // testCompile "junit:junit:4.12"
 }
 
-shadowJar {
-    exclude "org/apache/flink/shaded/**"
-    exclude "META-INF/*.SF"
-    exclude "META-INF/*.DSA"
-    exclude "META-INF/*.RSA"
+// make compileOnly dependencies available for tests:
+sourceSets {
+    main.compileClasspath += configurations.flinkShadowJar
+    main.runtimeClasspath += configurations.flinkShadowJar
 
-    dependencies {
-        // This list contains all dependencies of flink-dist Everything else will be packaged into the fat-jar
-        exclude(dependency("org.apache.flink:flink-annotations"))
-        exclude(dependency("org.apache.flink:flink-shaded-curator-recipes"))
-        exclude(dependency("org.apache.flink:flink-core"))
-        exclude(dependency("org.apache.flink:flink-java"))
-        exclude(dependency("org.apache.flink:flink-scala_$scalaBinVersion"))
-        exclude(dependency("org.apache.flink:flink-runtime_$scalaBinVersion"))
-        exclude(dependency("org.apache.flink:flink-optimizer_$scalaBinVersion"))
-        exclude(dependency("org.apache.flink:flink-clients_$scalaBinVersion"))
-        exclude(dependency("org.apache.flink:flink-examples-batch_$scalaBinVersion"))
-        exclude(dependency("org.apache.flink:flink-examples-streaming_$scalaBinVersion"))
-        exclude(dependency("org.apache.flink:flink-streaming-java_$scalaBinVersion"))
-        exclude(dependency("org.apache.flink:flink-streaming-scala_$scalaBinVersion"))
-        exclude(dependency("org.apache.flink:flink-metrics-core"))
-        exclude(dependency("org.apache.flink:flink-queryable-state-client-java_$scalaBinVersion"))
-        exclude(dependency("org.apache.flink:flink-hadoop-fs"))
-        exclude(dependency("org.apache.flink:force-shading"))
+    test.compileClasspath += configurations.flinkShadowJar
+    test.runtimeClasspath += configurations.flinkShadowJar
 
-        // Also exclude very big transitive dependencies of Flink
-        //   WARNING: You have to remove these excludes if your code relies on other versions of these dependencies.
+    javadoc.classpath += configurations.flinkShadowJar
+}
 
-        exclude(dependency("com.google.code.findbgs:jsr305"))
-        exclude(dependency("org.clapper:grizzled-slf4j_$scalaBinVersion:"))
-        exclude(dependency("org.mortbay.jetty::"))
-        exclude(dependency("jline:jline:"))
-        exclude(dependency("org.javassist:javassist:"))
+run.classpath = sourceSets.main.runtimeClasspath
 
-        exclude(dependency("org.scala-lang:scala-library"))
-        exclude(dependency("org.scala-lang:scala-compiler"))
-        exclude(dependency("org.scala-lang:scala-reflect"))
-        exclude(dependency("org.scala-lang.modules:scala-java8-compat_$scalaBinVersion"))
-        exclude(dependency("org.scala-lang.modules:scala-parser-combinators_$scalaBinVersion"))
-        exclude(dependency("com.data-artisans:flakka-actor_*"))
-        exclude(dependency("com.data-artisans:flakka-remote_*"))
-        exclude(dependency("com.data-artisans:flakka-slf4j_*"))
-        exclude(dependency("com.amazonaws:aws-java-sdk"))
-        exclude(dependency("com.typesafe.akka::"))
-        exclude(dependency("io.netty:netty-all"))
-        exclude(dependency("io.netty:netty"))
-        exclude(dependency("commons-fileupload:commons-fileupload"))
-        exclude(dependency("org.apache.avro:avro"))
-        exclude(dependency("commons-collections:commons-collections"))
-        exclude(dependency("org.codehaus.jackson:jackson-core-asl"))
-        exclude(dependency("org.codehaus.jackson:jackson-mapper-asl"))
-        exclude(dependency("com.thoughtworks.paranamer:paranamer"))
-        exclude(dependency("org.xerial.snappy:snappy-java"))
-        exclude(dependency("org.apache.commons:commons-compress"))
-        exclude(dependency("org.tukaani:xz"))
-        exclude(dependency("com.esotericsoftware.kryo:kryo"))
-        exclude(dependency("com.esotericsoftware.minlog:minlog"))
-        exclude(dependency("org.objenesis:objenesis"))
-        exclude(dependency("com.twitter::"))
-        exclude(dependency("commons-lang:commons-lang"))
-        exclude(dependency("junit:junit"))
-        exclude(dependency("de.javakaffee:kryo-serializers"))
-        exclude(dependency("joda-time:joda-time"))
-        exclude(dependency("org.apache.commons:commons-lang3"))
-        exclude(dependency("org.slf4j:slf4j-api"))
-        exclude(dependency("org.slf4j:slf4j-log4j12"))
-        exclude(dependency("log4j:log4j"))
-        exclude(dependency("org.apache.commons:commons-math3"))
-        exclude(dependency("org.apache.sling:org.apache.sling.commons.json"))
-        exclude(dependency("commons-logging:commons-logging"))
-        exclude(dependency("commons-codec:commons-codec"))
-        exclude(dependency("com.fasterxml.jackson.core:jackson-core"))
-        exclude(dependency("com.fasterxml.jackson.core:jackson-databind"))
-        exclude(dependency("com.fasterxml.jackson.core:jackson-annotations"))
-        exclude(dependency("stax:stax-api"))
-        exclude(dependency("com.typesafe:config"))
-        exclude(dependency("com.typesafe:ssl-config-core_$scalaBinVersion"))
-        exclude(dependency("org.uncommons.maths:uncommons-maths"))
-//        exclude(dependency("com.github.scopt::"))
-        exclude(dependency("commons-io:commons-io"))
-        exclude(dependency("commons-cli:commons-cli"))
-        exclude(dependency("org.rocksdb:rocksdbjni"))
+jar {
+    manifest {
+        attributes 'Built-By': System.getProperty('user.name'),
+                'Build-Jdk': System.getProperty('java.version')
     }
 }
 
+shadowJar {
+    configurations = [project.configurations.flinkShadowJar]
+}
+
+//
+//dependencies {
+//    compile 'org.slf4j:slf4j-log4j12:1.7.25'
+//    compile "org.json4s:json4s-native_$scalaBinVersion:3.5.3"
+//    compile "com.typesafe.scala-logging:scala-logging_$scalaBinVersion:3.9.0"
+//    compile "org.apache.flink:flink-clients_$scalaBinVersion:$flinkVersion"
+//    compile "org.apache.flink:flink-scala_$scalaBinVersion:$flinkVersion"
+//    compile "org.apache.flink:flink-streaming-scala_$scalaBinVersion:$flinkVersion"
+//    compile "org.apache.flink:flink-connector-kafka_$scalaBinVersion:$flinkVersion"
+//    compile "org.apache.flink:flink-metrics-dropwizard:$flinkVersion"
+//    compile "org.apache.flink:flink-statebackend-rocksdb_$scalaBinVersion:$flinkVersion"
+//}
+//
+//shadowJar {
+//    exclude "org/apache/flink/shaded/**"
+//    exclude "META-INF/*.SF"
+//    exclude "META-INF/*.DSA"
+//    exclude "META-INF/*.RSA"
+//
+//    dependencies {
+//        // This list contains all dependencies of flink-dist Everything else will be packaged into the fat-jar
+//        exclude(dependency("org.apache.flink:flink-annotations"))
+//        exclude(dependency("org.apache.flink:flink-shaded-curator-recipes"))
+//        exclude(dependency("org.apache.flink:flink-core"))
+//        exclude(dependency("org.apache.flink:flink-java"))
+//        exclude(dependency("org.apache.flink:flink-scala_$scalaBinVersion"))
+//        exclude(dependency("org.apache.flink:flink-runtime_$scalaBinVersion"))
+//        exclude(dependency("org.apache.flink:flink-optimizer_$scalaBinVersion"))
+//        exclude(dependency("org.apache.flink:flink-clients_$scalaBinVersion"))
+//        exclude(dependency("org.apache.flink:flink-examples-batch_$scalaBinVersion"))
+//        exclude(dependency("org.apache.flink:flink-examples-streaming_$scalaBinVersion"))
+//        exclude(dependency("org.apache.flink:flink-streaming-java_$scalaBinVersion"))
+//        exclude(dependency("org.apache.flink:flink-streaming-scala_$scalaBinVersion"))
+//        exclude(dependency("org.apache.flink:flink-metrics-core"))
+//        exclude(dependency("org.apache.flink:flink-queryable-state-client-java_$scalaBinVersion"))
+//        exclude(dependency("org.apache.flink:flink-hadoop-fs"))
+//        exclude(dependency("org.apache.flink:force-shading"))
+//
+//        // Also exclude very big transitive dependencies of Flink
+//        //   WARNING: You have to remove these excludes if your code relies on other versions of these dependencies.
+//
+//        exclude(dependency("com.google.code.findbgs:jsr305"))
+//        exclude(dependency("org.clapper:grizzled-slf4j_$scalaBinVersion:"))
+//        exclude(dependency("org.mortbay.jetty::"))
+//        exclude(dependency("jline:jline:"))
+//        exclude(dependency("org.javassist:javassist:"))
+//
+//        exclude(dependency("org.scala-lang:scala-library"))
+//        exclude(dependency("org.scala-lang:scala-compiler"))
+//        exclude(dependency("org.scala-lang:scala-reflect"))
+//        exclude(dependency("org.scala-lang.modules:scala-java8-compat_$scalaBinVersion"))
+//        exclude(dependency("org.scala-lang.modules:scala-parser-combinators_$scalaBinVersion"))
+//        exclude(dependency("com.data-artisans:flakka-actor_*"))
+//        exclude(dependency("com.data-artisans:flakka-remote_*"))
+//        exclude(dependency("com.data-artisans:flakka-slf4j_*"))
+//        exclude(dependency("com.amazonaws:aws-java-sdk"))
+//        exclude(dependency("com.typesafe.akka::"))
+//        exclude(dependency("io.netty:netty-all"))
+//        exclude(dependency("io.netty:netty"))
+//        exclude(dependency("commons-fileupload:commons-fileupload"))
+//        exclude(dependency("org.apache.avro:avro"))
+//        exclude(dependency("commons-collections:commons-collections"))
+//        exclude(dependency("org.codehaus.jackson:jackson-core-asl"))
+//        exclude(dependency("org.codehaus.jackson:jackson-mapper-asl"))
+//        exclude(dependency("com.thoughtworks.paranamer:paranamer"))
+//        exclude(dependency("org.xerial.snappy:snappy-java"))
+//        exclude(dependency("org.apache.commons:commons-compress"))
+//        exclude(dependency("org.tukaani:xz"))
+//        exclude(dependency("com.esotericsoftware.kryo:kryo"))
+//        exclude(dependency("com.esotericsoftware.minlog:minlog"))
+//        exclude(dependency("org.objenesis:objenesis"))
+//        exclude(dependency("com.twitter::"))
+//        exclude(dependency("commons-lang:commons-lang"))
+//        exclude(dependency("junit:junit"))
+//        exclude(dependency("de.javakaffee:kryo-serializers"))
+//        exclude(dependency("joda-time:joda-time"))
+//        exclude(dependency("org.apache.commons:commons-lang3"))
+////        exclude(dependency("org.slf4j:slf4j-api"))
+////        exclude(dependency("org.slf4j:slf4j-log4j12"))
+////        exclude(dependency("log4j:log4j"))
+//        exclude(dependency("org.apache.commons:commons-math3"))
+//        exclude(dependency("org.apache.sling:org.apache.sling.commons.json"))
+//        exclude(dependency("commons-logging:commons-logging"))
+//        exclude(dependency("commons-codec:commons-codec"))
+//        exclude(dependency("com.fasterxml.jackson.core:jackson-core"))
+//        exclude(dependency("com.fasterxml.jackson.core:jackson-databind"))
+//        exclude(dependency("com.fasterxml.jackson.core:jackson-annotations"))
+//        exclude(dependency("stax:stax-api"))
+//        exclude(dependency("com.typesafe:config"))
+//        exclude(dependency("com.typesafe:ssl-config-core_$scalaBinVersion"))
+//        exclude(dependency("org.uncommons.maths:uncommons-maths"))
+////        exclude(dependency("com.github.scopt::"))
+//        exclude(dependency("commons-io:commons-io"))
+//        exclude(dependency("commons-cli:commons-cli"))
+//        exclude(dependency("org.rocksdb:rocksdbjni"))
+//    }
+//}
+//

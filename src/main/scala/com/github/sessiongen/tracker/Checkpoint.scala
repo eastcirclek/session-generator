@@ -1,7 +1,7 @@
 package com.github.sessiongen.sessiontracker
 
 import org.apache.flink.streaming.api.environment.CheckpointConfig.ExternalizedCheckpointCleanup
-import org.apache.flink.streaming.api.scala.StreamExecutionEnvironment
+import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment
 
 object Checkpoint {
   def setupEnvironment(env: StreamExecutionEnvironment, config: Config): Unit = {

@@ -2,7 +2,6 @@ package com.github.sessiongen.generator
 
 import java.io.File
 
-import com.github.sessiongen._
 import com.typesafe.scalalogging.LazyLogging
 import scopt.OptionParser
 

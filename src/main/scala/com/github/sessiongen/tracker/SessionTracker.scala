@@ -1,15 +1,19 @@
 package com.github.sessiongen.sessiontracker
 
+import java.lang
+import java.nio.charset.StandardCharsets
+
 import com.github.sessiongen.Event
-import com.github.sessiongen.sessiontracker._
 import org.apache.flink.api.common.serialization.SimpleStringSchema
 import org.apache.flink.streaming.api.TimeCharacteristic
+import org.apache.flink.streaming.api.datastream.{DataStream, SingleOutputStreamOperator}
+import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment
 import org.apache.flink.streaming.api.functions.timestamps.BoundedOutOfOrdernessTimestampExtractor
-import org.apache.flink.streaming.api.scala._
 import org.apache.flink.streaming.api.windowing.assigners.EventTimeSessionWindows
 import org.apache.flink.streaming.api.windowing.time.Time
-import org.apache.flink.streaming.connectors.kafka.{FlinkKafkaConsumer, FlinkKafkaProducer}
+import org.apache.flink.streaming.connectors.kafka.{FlinkKafkaConsumer, FlinkKafkaProducer, KafkaSerializationSchema}
 import org.apache.flink.util.Collector
+import org.apache.kafka.clients.producer.ProducerRecord
 import org.json4s._
 import org.json4s.JsonDSL.WithDouble._
 import org.json4s.native.Serialization.{read, write}
@@ -28,7 +32,15 @@ object SessionTracker {
     Checkpoint.setupEnvironment(env, config)
 
     val consumer = new FlinkKafkaConsumer[String](config.consumerTopic, new SimpleStringSchema(), config.consumerProp)
-    val producer = new FlinkKafkaProducer[String](config.producerTopic, new SimpleStringSchema(), config.consumerProp)
+    val producer = new FlinkKafkaProducer[String](
+      config.producerTopic,
+      new KafkaSerializationSchema[String] {
+        override def serialize(element: String, timestamp: lang.Long): ProducerRecord[Array[Byte], Array[Byte]] = {
+          new ProducerRecord[Array[Byte], Array[Byte]](config.producerTopic, element.getBytes(StandardCharsets.UTF_8))
+        }
+      },
+      config.consumerProp,
+      FlinkKafkaProducer.Semantic.AT_LEAST_ONCE)
 
     KafkaOffset.setupConsumer(consumer, config)
     val source: DataStream[Event] = env
@@ -48,16 +60,17 @@ object SessionTracker {
       .name("watermark")
       .uid("watermark")
 
-    val window = source
+    val window: SingleOutputStreamOperator[String] = source
       .keyBy(_.id)
       .window(EventTimeSessionWindows.withGap(Time.milliseconds(config.sessionGap)))
       .apply { (key, window, iter, collector: Collector[String]) =>
         collector.collect(
           write(
-            ("key" -> key) ~
-            ("windowStart" -> window.getStart) ~
-            ("windowEnd" -> window.getEnd) ~
-            ("messages" -> iter.map(write[Event]))
+            ("key" -> key)
+//            ("key" -> key) ~
+//            ("windowStart" -> window.getStart) ~
+//            ("windowEnd" -> window.getEnd) ~
+//            ("messages" -> iter.map(write[Event]))
           )
         )
       }
