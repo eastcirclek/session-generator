@@ -33,7 +33,7 @@ object RestartStrategy {
 
   implicit val read: scopt.Read[RestartStrategy] = scopt.Read.reads(parse)
 
-  def setupEnvironment(env: StreamExecutionEnvironment, config: Config): Unit = {
+  def setupEnvironment(env: StreamExecutionEnvironment, config: TrackerConfig): Unit = {
     import config._
 
     env.setRestartStrategy(

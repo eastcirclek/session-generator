@@ -10,12 +10,13 @@ import org.json4s._
 import org.json4s.native.Serialization.write
 import scala.util.Random
 
-class Generator(config: Config, name: String) extends LazyLogging {
+class Generator(config: GeneratorConfig, name: String) extends LazyLogging {
   import config._
 
   private val eventHandler: EventHandler = Generator.loadEventHandler(eventHandlerOpt, eventHandlerArgsOpt)
   private val timeSlots: Int = rate * interval
-  private val usersPerSlot: Int = adjustedTotalUsers / timeSlots
+  //  private val usersPerSlot: Int = adjustedTotalUsers / timeSlots
+  private val usersPerSlot: Int = totalUsers / timeSlots
   private val intervalInNanos: Long = (1000000000L / rate.toFloat).toLong
   private val payload: String = Random.alphanumeric.take(payloadSize).mkString
   private val table: Array[TimeSlot] = Array.tabulate(timeSlots) { i =>
@@ -97,19 +98,14 @@ object Generator {
   }
 
   def main(args : Array[String]) {
-    val programDescription = "A user session generator based on periodic user events"
-    val config = Config.get(args, programDescription)
+    val config = GeneratorConfig.get(args, classOf[Generator].getName())
     import config._
 
     val generator = new Generator(config, keyPrefix)
 
     outputMode match {
       case Kafka() =>
-        val producer: KafkaProducer[String, String] = {
-          val props = new Properties()
-          props.load(new FileInputStream(propertyFileOpt.get))
-          new KafkaProducer(props)
-        }
+        val producer: KafkaProducer[String, String] = new KafkaProducer(producerProperty)
         def kafkaFeeder(id: String, jsonString: String, timestamp: Long): Boolean = {
           val rec = new ProducerRecord[String, String](topic, id, jsonString)
           producer.send(rec)
@@ -124,6 +120,7 @@ object Generator {
           false
         }
         generator.run(stdoutFeeder)
+
     }
   }
 

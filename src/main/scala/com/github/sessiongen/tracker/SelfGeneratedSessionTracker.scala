@@ -1,16 +1,14 @@
-package com.github.sessiongen.sessiontracker
+package com.github.sessiongen.tracker
 
-import java.io.FileInputStream
-import java.util.Properties
-
+import com.github.sessiongen.generator.{Generator, GeneratorConfig}
+import com.github.sessiongen.sessiontracker.{Checkpoint, NO_RESTART, NO_STATE_BACKEND, RestartStrategy, StateBackendType, TrackerConfig}
 import com.typesafe.scalalogging.LazyLogging
+import org.apache.flink.streaming.api.TimeCharacteristic
+import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment
+import org.apache.flink.streaming.api.functions.source.SourceFunction
 import scopt.OptionParser
 
-case class Config(consumerTopic: String = "",
-                  consumerProp: Properties = new Properties(),
-                  producerTopic: String = "",
-                  producerProp: Properties = new Properties(),
-                  sessionGap: Long = -1,
+private case class Config(sessionGap: Long = -1,
                   sourceTasks: Int = -1,
                   windowTasks: Int = -1,
                   sinkTasks: Int = -1,
@@ -18,43 +16,18 @@ case class Config(consumerTopic: String = "",
                   maxOutOfOrderness: Long = 0L,
                   checkpointTimeout: Long = 600000L,
                   stateBackend: StateBackendType = NO_STATE_BACKEND(),
-                  kafkaOffset: KafkaOffset = LATEST(),
                   restartStrategy: RestartStrategy = NO_RESTART(),
                   externalizedCheckpoint: Boolean = false,
                   deleteExtCkptOnJobCancel: Boolean = false,
                   incrementalCheckpoint: Boolean = false)
 
-object Config extends LazyLogging {
-
-  implicit val propertiesRead: scopt.Read[Properties] =
-    scopt.Read.reads { x =>
-      val properties = new Properties()
-      properties.load(new FileInputStream(x))
-      properties
-    }
-
-  def get(args: Array[String], programName: String): Config = {
-    val parser = new OptionParser[Config](programName) {
+private object Config extends LazyLogging {
+  def get(args: Array[String], programName: String): TrackerConfig = {
+    val parser = new OptionParser[TrackerConfig](programName) {
       override def reportError(msg: String): Unit = logger.error(msg)
       override def reportWarning(msg: String): Unit = logger.warn(msg)
 
       help("help").text("prints this usage text")
-
-      opt[String]("consumer-topic")
-        .required()
-        .action((x, c) => c.copy(consumerTopic = x))
-
-      opt[Properties]("consumer-prop-file")
-        .required()
-        .action((x, c) => c.copy(consumerProp = x))
-
-      opt[String]("producer-topic")
-        .required()
-        .action((x, c) => c.copy(producerTopic = x))
-
-      opt[Properties]("producer-prop-file")
-        .required()
-        .action((x, c) => c.copy(producerProp = x))
 
       opt[Long]("session-gap")
         .required()
@@ -96,11 +69,6 @@ object Config extends LazyLogging {
         .valueName(StateBackendType.FORMAT)
         .text("default : memory:interval=500")
 
-      opt[KafkaOffset]("kafka-offset")
-        .action((x, c) => c.copy(kafkaOffset = x))
-        .valueName(KafkaOffset.FORMAT)
-        .text("default : latest")
-
       opt[RestartStrategy]("restart-strategy")
         .action((x, c) => c.copy(restartStrategy = x))
         .valueName(RestartStrategy.FORMAT)
@@ -117,9 +85,31 @@ object Config extends LazyLogging {
         .text("effective only when using a rocksdb state-backend")
     }
 
-    parser.parse(args, Config()) match {
+    parser.parse(args, TrackerConfig()) match {
       case Some(config) => config
       case None => throw new RuntimeException("Failed to get a valid configuration object")
     }
+  }
+}
+
+object SelfGeneratedSessionTracker {
+  def main(args: Array[String]): Unit = {
+    val generatorConfig = GeneratorConfig.get(args, classOf[Generator].getName)
+    val generator = new Generator(generatorConfig, generatorConfig.keyPrefix)
+
+    val config = Config.get(args, SelfGeneratedSessionTracker.getClass.getName)
+
+    val env = StreamExecutionEnvironment.getExecutionEnvironment
+    env.setStreamTimeCharacteristic(TimeCharacteristic.EventTime)
+    env.getConfig.setAutoWatermarkInterval(config.watermarkInterval)
+    StateBackendType.setupEnvironment(env, config)
+    RestartStrategy.setupEnvironment(env, config)
+    Checkpoint.setupEnvironment(env, config)
+
+    def stdoutFeeder(id: String, jsonString: String, timestamp: Long): Boolean = {
+      println(jsonString)
+      false
+    }
+    generator.run(stdoutFeeder)
   }
 }

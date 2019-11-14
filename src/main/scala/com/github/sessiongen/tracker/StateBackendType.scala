@@ -44,7 +44,7 @@ object StateBackendType {
 
   implicit val read: scopt.Read[StateBackendType] = scopt.Read.reads(parse)
 
-  def setupEnvironment(env: StreamExecutionEnvironment, config: Config): Unit ={
+  def setupEnvironment(env: StreamExecutionEnvironment, config: TrackerConfig): Unit ={
     import config._
 
     stateBackend match {

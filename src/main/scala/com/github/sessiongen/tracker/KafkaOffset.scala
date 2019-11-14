@@ -49,7 +49,7 @@ object KafkaOffset {
 
   implicit val read: scopt.Read[KafkaOffset] = scopt.Read.reads(parse)
 
-  def setupConsumer(consumer: FlinkKafkaConsumer[_], config: Config): Unit = {
+  def setupConsumer(consumer: FlinkKafkaConsumer[_], config: TrackerConfig): Unit = {
     config.kafkaOffset match {
       case LATEST() => consumer.setStartFromLatest()
       case EARLIEST() => consumer.setStartFromEarliest()

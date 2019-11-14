@@ -4,7 +4,7 @@ import org.apache.flink.streaming.api.environment.CheckpointConfig.ExternalizedC
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment
 
 object Checkpoint {
-  def setupEnvironment(env: StreamExecutionEnvironment, config: Config): Unit = {
+  def setupEnvironment(env: StreamExecutionEnvironment, config: TrackerConfig): Unit = {
     import config._
 
     env.getCheckpointConfig.setCheckpointTimeout(checkpointTimeout)

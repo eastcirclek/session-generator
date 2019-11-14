@@ -6,6 +6,7 @@ import java.nio.charset.StandardCharsets
 import com.github.sessiongen.Event
 import org.apache.flink.api.common.serialization.SimpleStringSchema
 import org.apache.flink.api.common.typeinfo.Types
+import org.apache.flink.shaded.zookeeper.org.apache.zookeeper.server.SessionTracker
 import org.apache.flink.streaming.api.TimeCharacteristic
 import org.apache.flink.streaming.api.datastream.{DataStream, SingleOutputStreamOperator}
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment
@@ -27,7 +28,7 @@ object SessionTracker {
   implicit val formats = DefaultFormats
 
   def main(args: Array[String]): Unit = {
-    val config = Config.get(args, "SessionTracker")
+    val config = TrackerConfig.get(args, classOf[SessionTracker].getName())
 
     val env = StreamExecutionEnvironment.getExecutionEnvironment
     env.setStreamTimeCharacteristic(TimeCharacteristic.EventTime)
@@ -68,12 +69,12 @@ object SessionTracker {
     val window: DataStream[String] = source
       .keyBy(_.id)
       .window(EventTimeSessionWindows.withGap(Time.milliseconds(config.sessionGap)))
-      .process { (key: String, context: ProcessWindowFunction[Event, String, String, TimeWindow]#Context, elements, out: Collector[String]) =>
+      .process { (key: String, ctx: ProcessWindowFunction[Event, String, String, TimeWindow]#Context, elements, out: Collector[String]) =>
         out.collect(
           write(
             ("key" -> key) ~
-              ("windowStart" -> context.window().getStart) ~
-              ("windowEnd" -> context.window().getStart) ~
+              ("windowStart" -> ctx.window().getStart) ~
+              ("windowEnd" -> ctx.window().getStart) ~
               ("messages" -> elements.asScala.map(write[Event]))
           )
         )
