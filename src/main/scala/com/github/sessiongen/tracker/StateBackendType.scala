@@ -1,24 +1,25 @@
 package com.github.sessiongen.sessiontracker
 
-import org.apache.flink.contrib.streaming.state.{PredefinedOptions, RocksDBStateBackend}
+import org.apache.flink.contrib.streaming.state.RocksDBStateBackend
+import org.apache.flink.runtime.state.StateBackend
 import org.apache.flink.runtime.state.filesystem.FsStateBackend
 import org.apache.flink.runtime.state.memory.MemoryStateBackend
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment
 
-sealed trait StateBackend
-case class NO_STATE_BACKEND() extends StateBackend
-case class MEMORY_STATE_BACKEND(intervalInMillis: Long, pauseInMillis: Option[Long]) extends StateBackend
-case class FS_STATE_BACKEND(uri: String, intervalInMillis: Long, pauseInMillis: Option[Long]) extends StateBackend
-case class ROCKSDB_STATE_BACKEND(uri: String, intervalInMillis: Long, pauseInMillis: Option[Long]) extends StateBackend
+sealed trait StateBackendType
+case class NO_STATE_BACKEND() extends StateBackendType
+case class MEMORY_STATE_BACKEND(intervalInMillis: Long, pauseInMillis: Option[Long]) extends StateBackendType
+case class FS_STATE_BACKEND(uri: String, intervalInMillis: Long, pauseInMillis: Option[Long]) extends StateBackendType
+case class ROCKSDB_STATE_BACKEND(uri: String, intervalInMillis: Long, pauseInMillis: Option[Long]) extends StateBackendType
 
-object StateBackend {
+object StateBackendType {
   val NONE_FORMAT = "none"
   val MEMORY_FORMAT = "memory:interval=<ms>[,pause=<ms>]"
   val FS_FORMAT = "fs:uri=<uri>,interval=<ms>[,pause=<ms>]"
   val ROCKSDB_FORMAT = "rocksdb:uri=<uri>,interval=<ms>[,pause=<ms>]"
   val FORMAT: String = s"($MEMORY_FORMAT|$FS_FORMAT|$ROCKSDB_FORMAT)"
 
-  def parse: String => StateBackend = {
+  def parse: String => StateBackendType = {
     case "none" =>
       NO_STATE_BACKEND()
 
@@ -41,7 +42,7 @@ object StateBackend {
       throw new IllegalArgumentException(s"Unknown input $x while the expected input is of the format $FORMAT")
   }
 
-  implicit val read: scopt.Read[StateBackend] = scopt.Read.reads(parse)
+  implicit val read: scopt.Read[StateBackendType] = scopt.Read.reads(parse)
 
   def setupEnvironment(env: StreamExecutionEnvironment, config: Config): Unit ={
     import config._
@@ -50,18 +51,18 @@ object StateBackend {
       case NO_STATE_BACKEND() => ()
 
       case MEMORY_STATE_BACKEND(intervalInMillis, pauseMillisOpt) =>
-        env.setStateBackend(new MemoryStateBackend())
+        env.setStateBackend(new MemoryStateBackend().asInstanceOf[StateBackend])
         env.enableCheckpointing(intervalInMillis)
         pauseMillisOpt.foreach(env.getCheckpointConfig.setMinPauseBetweenCheckpoints(_))
 
       case FS_STATE_BACKEND(uri, intervalInMillis, pauseMillisOpt) =>
-        env.setStateBackend(new FsStateBackend(uri))
+        env.setStateBackend(new FsStateBackend(uri).asInstanceOf[StateBackend])
         env.enableCheckpointing(intervalInMillis)
         pauseMillisOpt.foreach(env.getCheckpointConfig.setMinPauseBetweenCheckpoints(_))
 
       case ROCKSDB_STATE_BACKEND(uri, intervalInMillis, pauseMillisOpt) =>
         val rocksDBStateBackend = new RocksDBStateBackend(uri, config.incrementalCheckpoint)
-        env.setStateBackend(rocksDBStateBackend)
+        env.setStateBackend(rocksDBStateBackend.asInstanceOf[StateBackend])
         env.enableCheckpointing(intervalInMillis)
         pauseMillisOpt.foreach(env.getCheckpointConfig.setMinPauseBetweenCheckpoints(_))
     }

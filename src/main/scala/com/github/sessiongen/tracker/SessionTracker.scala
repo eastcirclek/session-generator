@@ -5,18 +5,23 @@ import java.nio.charset.StandardCharsets
 
 import com.github.sessiongen.Event
 import org.apache.flink.api.common.serialization.SimpleStringSchema
+import org.apache.flink.api.common.typeinfo.Types
 import org.apache.flink.streaming.api.TimeCharacteristic
 import org.apache.flink.streaming.api.datastream.{DataStream, SingleOutputStreamOperator}
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment
 import org.apache.flink.streaming.api.functions.timestamps.BoundedOutOfOrdernessTimestampExtractor
+import org.apache.flink.streaming.api.functions.windowing.{ProcessWindowFunction, WindowFunction}
 import org.apache.flink.streaming.api.windowing.assigners.EventTimeSessionWindows
 import org.apache.flink.streaming.api.windowing.time.Time
+import org.apache.flink.streaming.api.windowing.windows.TimeWindow
 import org.apache.flink.streaming.connectors.kafka.{FlinkKafkaConsumer, FlinkKafkaProducer, KafkaSerializationSchema}
 import org.apache.flink.util.Collector
 import org.apache.kafka.clients.producer.ProducerRecord
 import org.json4s._
 import org.json4s.JsonDSL.WithDouble._
 import org.json4s.native.Serialization.{read, write}
+
+import scala.collection.JavaConverters._
 
 object SessionTracker {
   implicit val formats = DefaultFormats
@@ -27,7 +32,7 @@ object SessionTracker {
     val env = StreamExecutionEnvironment.getExecutionEnvironment
     env.setStreamTimeCharacteristic(TimeCharacteristic.EventTime)
     env.getConfig.setAutoWatermarkInterval(config.watermarkInterval)
-    StateBackend.setupEnvironment(env, config)
+    StateBackendType.setupEnvironment(env, config)
     RestartStrategy.setupEnvironment(env, config)
     Checkpoint.setupEnvironment(env, config)
 
@@ -60,17 +65,16 @@ object SessionTracker {
       .name("watermark")
       .uid("watermark")
 
-    val window: SingleOutputStreamOperator[String] = source
+    val window: DataStream[String] = source
       .keyBy(_.id)
       .window(EventTimeSessionWindows.withGap(Time.milliseconds(config.sessionGap)))
-      .apply { (key, window, iter, collector: Collector[String]) =>
-        collector.collect(
+      .process { (key: String, context: ProcessWindowFunction[Event, String, String, TimeWindow]#Context, elements, out: Collector[String]) =>
+        out.collect(
           write(
-            ("key" -> key)
-//            ("key" -> key) ~
-//            ("windowStart" -> window.getStart) ~
-//            ("windowEnd" -> window.getEnd) ~
-//            ("messages" -> iter.map(write[Event]))
+            ("key" -> key) ~
+              ("windowStart" -> context.window().getStart) ~
+              ("windowEnd" -> context.window().getStart) ~
+              ("messages" -> elements.asScala.map(write[Event]))
           )
         )
       }

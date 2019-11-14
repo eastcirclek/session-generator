@@ -17,7 +17,7 @@ case class Config(consumerTopic: String = "",
                   watermarkInterval: Long = 50L,
                   maxOutOfOrderness: Long = 0L,
                   checkpointTimeout: Long = 600000L,
-                  stateBackend: StateBackend = NO_STATE_BACKEND(),
+                  stateBackend: StateBackendType = NO_STATE_BACKEND(),
                   kafkaOffset: KafkaOffset = LATEST(),
                   restartStrategy: RestartStrategy = NO_RESTART(),
                   externalizedCheckpoint: Boolean = false,
@@ -91,9 +91,9 @@ object Config extends LazyLogging {
         .valueName("<ms>")
         .text("default : 600000")
 
-      opt[StateBackend]("state-backend")
+      opt[StateBackendType]("state-backend")
         .action((x, c) => c.copy(stateBackend = x))
-        .valueName(StateBackend.FORMAT)
+        .valueName(StateBackendType.FORMAT)
         .text("default : memory:interval=500")
 
       opt[KafkaOffset]("kafka-offset")

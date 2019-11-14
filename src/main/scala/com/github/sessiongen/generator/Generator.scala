@@ -1,14 +1,13 @@
 package com.github.sessiongen.generator
 
-import java.io.FileInputStream
-
-import com.typesafe.scalalogging.LazyLogging
-import java.util.Properties
-
 import com.github.sessiongen.{Event, TimeSlot}
 import com.github.sessiongen.generator.Generator.EventHandler
+import com.typesafe.scalalogging.LazyLogging
+import java.io.FileInputStream
+import java.util.Properties
 import org.apache.kafka.clients.producer.{KafkaProducer, ProducerRecord}
-
+import org.json4s._
+import org.json4s.native.Serialization.write
 import scala.util.Random
 
 class Generator(config: Config, name: String) extends LazyLogging {
@@ -133,9 +132,6 @@ object Generator {
   }
 
   private[sessiongen] object DefaultEventHandler extends EventHandler {
-    import org.json4s._
-    import org.json4s.native.Serialization.write
-
     implicit val formats = DefaultFormats
 
     override def handle(event: Event): String = write(event)
