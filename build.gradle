@@ -21,7 +21,7 @@ description = """Session generator"""
 
 ext {
     javaVersion = '1.8'
-    flinkVersion = "1.9.1"
+    flinkVersion = "1.10.0"
     scalaBinaryVersion = "2.12"
     slf4jVersion = '1.7.7'
     log4jVersion = '1.2.17'
@@ -73,11 +73,13 @@ dependencies {
     // --------------------------------------------------------------
     flinkShadowJar "org.apache.flink:flink-connector-kafka_${scalaBinaryVersion}:${flinkVersion}"
     flinkShadowJar "org.apache.flink:flink-statebackend-rocksdb_${scalaBinaryVersion}:${flinkVersion}"
+    flinkShadowJar "com.typesafe.scala-logging:scala-logging_${scalaBinaryVersion}:3.9.0"
+    flinkShadowJar "com.github.scopt:scopt_${scalaBinaryVersion}:3.5.0"
+    flinkShadowJar "org.json4s:json4s-native_${scalaBinaryVersion}:3.5.3"
 
     compile "log4j:log4j:${log4jVersion}"
     compile "org.slf4j:slf4j-log4j12:${slf4jVersion}"
-    compile "org.json4s:json4s-native_${scalaBinaryVersion}:3.5.3"
-    compile "com.typesafe.scala-logging:scala-logging_${scalaBinaryVersion}:3.9.0"
+
 
     // Add test dependencies here.
     // testCompile "junit:junit:4.12"
