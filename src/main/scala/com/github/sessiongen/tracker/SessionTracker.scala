@@ -5,10 +5,9 @@ import java.nio.charset.StandardCharsets
 
 import com.github.sessiongen.Event
 import org.apache.flink.api.common.serialization.SimpleStringSchema
-import org.apache.flink.api.common.typeinfo.Types
-import org.apache.flink.shaded.zookeeper.org.apache.zookeeper.server.SessionTracker
+import org.apache.flink.streaming.api.scala._
 import org.apache.flink.streaming.api.TimeCharacteristic
-import org.apache.flink.streaming.api.datastream.{DataStream, SingleOutputStreamOperator}
+import org.apache.flink.streaming.api.datastream.DataStream
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment
 import org.apache.flink.streaming.api.functions.timestamps.BoundedOutOfOrdernessTimestampExtractor
 import org.apache.flink.streaming.api.functions.windowing.{ProcessWindowFunction, WindowFunction}
@@ -28,7 +27,7 @@ object SessionTracker {
   implicit val formats = DefaultFormats
 
   def main(args: Array[String]): Unit = {
-    val config = TrackerConfig.get(args, classOf[SessionTracker].getName())
+    val config = TrackerConfig.get(args, "SessionTracker")
 
     val env = StreamExecutionEnvironment.getExecutionEnvironment
     env.setStreamTimeCharacteristic(TimeCharacteristic.EventTime)
@@ -79,7 +78,7 @@ object SessionTracker {
           )
         )
       }
-      .setParallelism(1)
+      .setParallelism(config.windowTasks)
       .name("window")
       .uid("window")
 

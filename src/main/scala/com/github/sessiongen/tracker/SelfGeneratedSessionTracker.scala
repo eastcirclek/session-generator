@@ -34,11 +34,6 @@ private object Config extends LazyLogging {
         .action((x, c) => c.copy(sessionGap = x))
         .valueName("<ms>")
 
-      opt[Int]("source-tasks")
-        .required()
-        .action((x, c) => c.copy(sourceTasks = x))
-        .valueName("<num>")
-
       opt[Int]("window-tasks")
         .required()
         .action((x, c) => c.copy(windowTasks = x ))
